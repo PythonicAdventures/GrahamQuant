@@ -1,0 +1,27 @@
+name: Generate Repo Tree
+
+on:
+  push:
+    branches:
+      - main # Or your default branch name (e.g., master)
+
+jobs:
+  build-tree:
+    runs-on: ubuntu-latest
+    name: Auto-generate Readme Tree
+
+    steps:
+      - name: Checkout Codebase
+        uses: actions/checkout@v4
+
+      - name: Generate Directory Tree
+        uses: RavelloH/readme-tree@latest
+
+      - name: Commit and Push Changes
+        continue-on-error: true
+        run: |
+          git config --local user.email "actions@github.com"
+          git config --local user.name "github-actions"
+          git add README.md
+          git commit -m "docs: auto-update repository tree structure" || exit 0
+          git push

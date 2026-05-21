@@ -33,5 +33,11 @@ The reason for developing this tool was to create a small and light-weight Pytho
 - Price 5 Year Low: WIP
 - Price 10 Year Low: WIP
 
+## Repository Structure
+
+```
+<!-- readme-tree start -->
+<!-- readme-tree end -->
+```
 
 

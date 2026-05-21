@@ -26,6 +26,7 @@ import tkinter as tk
 from tkinter import ttk
 
 import pandas as pd
+from src.grahamquant.formulas_calcs import apply_formatting
 
 # ── Palette ───────────────────────────────────────────────────────────────────
 BG        = "#0f1117"
@@ -95,9 +96,75 @@ DEFAULT_COL_WIDTH = 95
 
 # ── Helpers ───────────────────────────────────────────────────────────────────
 def _is_na(val) -> bool:
-    return val in (None, "N/A", "nan", "", "0") or (
-        isinstance(val, float) and pd.isna(val)
-    )
+    if val is None:
+        return True
+    if isinstance(val, float) and pd.isna(val):
+        return True
+    if str(val).strip() in ("N/A", "nan", "", "<NA>"):
+        return True
+    return False
+
+
+def _fmt(val, col: str) -> str:
+    """
+    Format a value for display. Handles both:
+      - Raw numerics from cache (floats)
+      - Pre-formatted strings from create_calcs ("1.5b", "N/A", "1.23x")
+    """
+    if _is_na(val):
+        return "N/A"
+
+    # Already a formatted string — pass through
+    if isinstance(val, str):
+        return val
+
+    # Raw numeric — format based on column type
+    try:
+        v = float(val)
+    except (TypeError, ValueError):
+        return str(val)
+
+    if pd.isna(v):
+        return "N/A"
+
+    # Columns that should never be magnitude-formatted
+    passthrough_cols = {"Year", "Report Date", "Ticker", "Region",
+                        "Trading Currency", "Financial Currency"}
+    if col in passthrough_cols:
+        # Return as clean integer string if it's a whole number
+        return str(int(v)) if v == int(v) else str(v)
+
+    # Ratio / percentage columns
+    ratio_cols = {
+        "Price_Book_Ratio", "Price_Tangible_Book_Ratio",
+        "Price_NCAV_Ratio", "Price_NCAV_Inv_Ratio",
+        "PE_Ratio", "PE_Ratio_TTM",
+    }
+    pct_cols = {"ROE", "ROE_5YR"}
+
+    if col in ratio_cols:
+        if v < 0 or v != v:   # negative or NaN
+            return "N/A"
+        return f"{v:.2f}x"
+
+    if col in pct_cols:
+        return f"{v:.2%}"
+
+    # Currency / large number columns
+    if v < 0:
+        sign, av = "-", abs(v)
+    else:
+        sign, av = "", v
+
+    if av >= 1_000_000_000_000:
+        return f"{sign}{av / 1_000_000_000_000:.1f}t"
+    elif av >= 1_000_000_000:
+        return f"{sign}{av / 1_000_000_000:.1f}b"
+    elif av >= 1_000_000:
+        return f"{sign}{av / 1_000_000:.1f}m"
+    elif av >= 1_000:
+        return f"{sign}{av / 1_000:.1f}k"
+    return f"{sign}{v:.1f}"
 
 
 def _value_color(val) -> str:
@@ -112,11 +179,12 @@ def _value_color(val) -> str:
 # ══════════════════════════════════════════════════════════════════════════════
 class GrahamQuantApp(tk.Tk):
 
-    def __init__(self, ticker_list: list, pull_fn, calc_fn):
+    def __init__(self, ticker_list: list, pull_fn, calc_fn, cache=None):
         super().__init__()
         self._ticker_list = ticker_list
         self._pull_fn     = pull_fn
         self._calc_fn     = calc_fn
+        self._cache       = cache   # CacheManager instance (optional for now)
 
         self.title("GrahamQuant")
         self.configure(bg=BG)
@@ -295,40 +363,69 @@ class GrahamQuantApp(tk.Tk):
             return
 
         self._load_btn.config(state="disabled")
-        self._set_status(f"Fetching {ticker} from Yahoo Finance…", NEUTRAL)
         self._clear_panels()
 
         def _worker():
             try:
-                raw = self._pull_fn(ticker_list=[ticker])
-                df  = self._calc_fn(df_=raw)
-                self.after(0, lambda: self._render(ticker, df))
+                df, source = self._load_ticker(ticker)
+                self.after(0, lambda: self._render(ticker, df, source))
             except Exception as exc:
                 self.after(0, lambda: self._on_error(str(exc)))
 
         threading.Thread(target=_worker, daemon=True).start()
+
+    def _load_ticker(self, ticker: str) -> tuple:
+        """
+        Load data for a ticker. Priority:
+          1. Cache (raw floats) — format for display then return
+          2. Live pull from yfinance (fallback) — calc + format then return
+        Returns (df, source_label) where source_label is "cache" or "live".
+        """
+        # Try cache first
+        if self._cache is not None:
+            try:
+                self._set_status_threadsafe(f"Checking cache for {ticker}…", NEUTRAL)
+                df = self._cache.read_ticker(ticker)
+                if not df.empty:
+                    # Cache holds raw floats — format for display before rendering
+                    df = apply_formatting(df)
+                    return df, "cache"
+            except Exception:
+                pass  # fall through to live pull
+
+        # Fall back to live pull
+        self._set_status_threadsafe(f"Fetching {ticker} from Yahoo Finance…", NEUTRAL)
+        raw = self._pull_fn(ticker_list=[ticker])
+        df  = self._calc_fn(df_=raw)   # create_calcs = apply_calcs + apply_formatting
+        return df, "live"
+
+    def _set_status_threadsafe(self, msg: str, color: str = NEUTRAL):
+        """Schedule a status update from a background thread."""
+        self.after(0, lambda: self._set_status(msg, color))
 
     def _on_error(self, msg: str):
         self._set_status(f"Error: {msg}", NEG)
         self._load_btn.config(state="normal")
 
     # ── Render ────────────────────────────────────────────────────────────────
-    def _render(self, ticker: str, df: pd.DataFrame):
-        sub = df[df["Ticker"] == ticker]
+    def _render(self, ticker: str, df: pd.DataFrame, source: str = "live"):
+        sub = df[df["Ticker"] == ticker] if "Ticker" in df.columns else df
         if sub.empty:
             self._set_status(f"No data returned for {ticker}.", NEG)
             self._load_btn.config(state="normal")
             return
 
-        latest = sub.iloc[0]   # most recent year (df already sorted desc)
+        latest = sub.iloc[0]   # most recent year (sorted desc by create_calcs)
         self._render_summary(ticker, latest)
         self._render_history(sub)
 
-        curr = latest.get("Trading Currency", "")
-        n    = len(sub)
+        curr     = latest.get("Trading Currency", latest.get("Financial Currency", ""))
+        n        = len(sub)
+        src_tag  = "● CACHE" if source == "cache" else "○ LIVE"
+        src_col  = ACCENT if source == "cache" else NEUTRAL
         self._set_status(
-            f"{ticker}  ·  {n} reporting year{'s' if n != 1 else ''}  ·  currency: {curr}",
-            ACCENT,
+            f"{src_tag}  ·  {ticker}  ·  {n} reporting year{'s' if n != 1 else ''}  ·  {curr}",
+            src_col,
         )
         self._load_btn.config(state="normal")
 
@@ -342,9 +439,11 @@ class GrahamQuantApp(tk.Tk):
 
         badge = tk.Frame(badge_frame, bg=ACCENT, padx=10, pady=4)
         badge.pack(side="left")
+        raw_year = row.get("Year", None)
+        year_str = str(int(float(raw_year))) if raw_year is not None and str(raw_year) not in ("", "N/A", "nan") else "—"
         tk.Label(
             badge,
-            text=f" {ticker}  ·  FY {row.get('Year', '—')}  ·  {row.get('Report Date', '—')} ",
+            text=f" {ticker}  ·  FY {year_str}  ·  {row.get('Report Date', '—')} ",
             bg=ACCENT, fg="#0f1117",
             font=("Courier New", 10, "bold"),
         ).pack()
@@ -365,7 +464,8 @@ class GrahamQuantApp(tk.Tk):
             r = (idx // COLS) + 1
             c = idx % COLS
 
-            val   = str(row.get(col, "N/A")) if col in row.index else "N/A"
+            raw   = row.get(col, None) if col in row.index else None
+            val   = _fmt(raw, col)
             color = _value_color(val)
 
             tile = tk.Frame(
@@ -391,7 +491,7 @@ class GrahamQuantApp(tk.Tk):
 
         for i, (_, row) in enumerate(df.iterrows()):
             values = [
-                str(row.get(col, "N/A")) if col in df.columns else "N/A"
+                _fmt(row.get(col, None), col) if col in df.columns else "N/A"
                 for col in HISTORY_COLUMNS
             ]
             tag = "odd" if i % 2 else "even"
@@ -416,11 +516,12 @@ class GrahamQuantApp(tk.Tk):
 
 
 # ══════════════════════════════════════════════════════════════════════════════
-def launch(ticker_list: list, pull_fn, calc_fn):
+def launch(ticker_list: list, pull_fn, calc_fn, cache=None):
     """Entry point — called from main.py."""
     app = GrahamQuantApp(
         ticker_list=ticker_list,
         pull_fn=pull_fn,
         calc_fn=calc_fn,
+        cache=cache,
     )
     app.mainloop()

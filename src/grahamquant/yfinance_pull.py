@@ -8,6 +8,9 @@ import yfinance as yf
 import pandas as pd
 import numpy as np
 import warnings
+import logging
+
+logger = logging.getLogger(__name__)
 
 # Suppress FutureWarnings that originate inside yfinance internals.
 # These come from yfinance's own history.py (empty Series dtype) and
@@ -19,9 +22,17 @@ warnings.filterwarnings(
 )
 
 def _to_naive(ts):
-    """Convert any Timestamp to tz-naive. Aware => tz_convert(None), naive => passthrough."""
+    """Convert any Timestamp to tz-naive, handling both tz-aware and tz-naive."""
+    if ts is None:
+        return None
+    # For pandas Timestamp with tzinfo
     if hasattr(ts, 'tzinfo') and ts.tzinfo is not None:
-        return ts.tz_convert(None)
+        # Use tz_localize(None) to drop the timezone info (not convert)
+        if hasattr(ts, 'tz_localize'):
+            return ts.tz_localize(None)
+        # Fallback for datetime objects without tz_localize
+        return ts.replace(tzinfo=None)
+    # Already naive
     return ts
 
 
@@ -42,6 +53,65 @@ def _scalar(val):
     if val is not None and pd.isna(val):
         return None
     return val
+
+
+def _calculate_historical_market_cap(ticker, report_date_naive, shares_outstanding, fx_rate, ticker_str=None, year=None):
+    """
+    Calculate historical market cap from shares outstanding and historical price.
+    
+    Strategies (in order):
+    1. Fetch price from ±30 day window around report date (generous for non-trading days)
+    2. Use closest trading day found in history
+    3. Return None if price data unavailable
+    
+    Returns: market_cap (float) or None
+    """
+    if shares_outstanding is None or shares_outstanding <= 0:
+        return None
+    
+    try:
+        # Fetch a wider window to capture the closest trading day to report_date
+        start_search = report_date_naive - pd.Timedelta(days=30)
+        end_search   = report_date_naive + pd.Timedelta(days=30)
+        
+        print(f"        Fetching price for {ticker_str} {year} from {start_search.date()} to {end_search.date()}")
+        price_hist = ticker.history(start=start_search, end=end_search)
+        print(f"        Got {len(price_hist)} rows of price data")
+        
+        if price_hist.empty:
+            print(f"        No price data in ±30 day window")
+            logger.debug(f"{ticker_str} {year} ({report_date_naive.date()}): No price data in ±30 day window")
+            return None
+        
+        # Convert DatetimeIndex to tz-naive if needed
+        if price_hist.index.tz is not None:
+            price_hist.index = price_hist.index.tz_localize(None)
+        
+        print(f"        Price data range: {price_hist.index.min().date()} to {price_hist.index.max().date()}")
+        
+        # Find the closest trading day to report_date
+        closest_price_date = min(
+            price_hist.index,
+            key=lambda x: abs(x - report_date_naive),
+        )
+        close_price = price_hist.loc[closest_price_date, "Close"]
+        
+        if pd.isna(close_price) or close_price <= 0:
+            print(f"        Invalid close price: {close_price}")
+            logger.debug(f"{ticker_str} {year}: Invalid close price {close_price}")
+            return None
+        
+        hist_market_cap = shares_outstanding * close_price * fx_rate
+        days_away = abs((closest_price_date - report_date_naive).days)
+        result = f"{hist_market_cap:.2e}"
+        print(f"        ✓ Calc'd: {result} (shares={shares_outstanding:.2e}, price={close_price:.2f}, price_date={closest_price_date.date()}, days_away={days_away})")
+        logger.debug(f"{ticker_str} {year}: Calc'd market cap = {hist_market_cap:.2e} (price_date={closest_price_date.date()}, days_away={days_away})")
+        return hist_market_cap if hist_market_cap > 0 else None
+        
+    except Exception as e:
+        print(f"        ✗ Exception: {e}")
+        logger.debug(f"{ticker_str} {year}: Historical market cap calculation failed for {report_date_naive}: {e}")
+        return None
 
 
 def pull_yf_ticker_data(ticker_list: list):
@@ -131,43 +201,59 @@ def pull_yf_ticker_data(ticker_list: list):
                     )
 
                     # --- Historical Market Cap ---
-                    hist_market_cap = None
-
-                    # Strategy A: get_shares_full time series
+                    # Multi-strategy approach to get shares outstanding:
+                    
+                    # Strategy A: Fetch shares from time series (most reliable for historical data)
                     shares_outstanding = None
+                    shares_source = None
+                    
                     if shares_series is not None and not shares_series.empty:
                         try:
+                            # Find closest share date within 180 days
                             closest_share_date = min(
                                 shares_series.index,
                                 key=lambda x: abs(_to_naive(x) - report_date_naive),
                             )
-                            if abs((_to_naive(closest_share_date) - report_date_naive).days) <= 180:
+                            days_diff = abs((_to_naive(closest_share_date) - report_date_naive).days)
+                            if days_diff <= 180:
                                 shares_outstanding = _scalar(shares_series.loc[closest_share_date])
-                        except Exception:
+                                if shares_outstanding is not None and shares_outstanding > 0:
+                                    shares_source = "time_series"
+                                    logger.debug(f"{ticker_str} {year_val}: Got shares from time_series ({shares_outstanding:.2e})")
+                        except Exception as e:
+                            logger.debug(f"{ticker_str} {year_val}: shares_series lookup failed: {e}")
                             pass
 
                     # Strategy B: Ordinary Shares Number from balance sheet
                     if shares_outstanding is None:
-                        shares_outstanding = _scalar(bs_col.get("Ordinary Shares Number"))
-
-                    # Compute hist market cap from shares + historical close price
-                    # _scalar() ensures shares_outstanding is a plain Python scalar,
-                    # so the `is not None` check is safe — no Series ambiguity.
-                    if shares_outstanding is not None:
                         try:
-                            start_search = report_date_naive - pd.Timedelta(days=3)
-                            end_search   = report_date_naive + pd.Timedelta(days=4)
-                            price_hist = ticker.history(start=start_search, end=end_search)
-                            if not price_hist.empty:
-                                price_hist.index = price_hist.index.map(_to_naive)
-                                closest_price_idx = min(
-                                    price_hist.index,
-                                    key=lambda x: abs(x - report_date_naive),
-                                )
-                                close_price = price_hist.loc[closest_price_idx, "Close"]
-                                hist_market_cap = shares_outstanding * close_price * fx_rate
+                            shares_outstanding = _scalar(bs_col.get("Ordinary Shares Number"))
+                            if shares_outstanding is not None and shares_outstanding > 0:
+                                shares_source = "balance_sheet"
+                                logger.debug(f"{ticker_str} {year_val}: Got shares from balance_sheet ({shares_outstanding:.2e})")
                         except Exception:
                             pass
+
+                    # Strategy C: Common Stock from balance sheet (fallback)
+                    if shares_outstanding is None:
+                        try:
+                            shares_outstanding = _scalar(bs_col.get("Common Stock"))
+                            if shares_outstanding is not None and shares_outstanding > 0:
+                                shares_source = "common_stock_value"
+                                logger.debug(f"{ticker_str} {year_val}: Got shares from common_stock ({shares_outstanding:.2e})")
+                        except Exception:
+                            pass
+                    
+                    if shares_outstanding is None:
+                        logger.debug(f"{ticker_str} {year_val}: No shares outstanding found from any strategy")
+
+                    # Now calculate historical market cap using the shares we found
+                    hist_market_cap = None
+                    if shares_outstanding is not None and shares_outstanding > 0:
+                        hist_market_cap = _calculate_historical_market_cap(
+                            ticker, report_date_naive, shares_outstanding, fx_rate, 
+                            ticker_str=ticker_str, year=year_val
+                        )
 
                     # --- Income statement matching ---
                     fy_net_inc = None
@@ -186,6 +272,12 @@ def pull_yf_ticker_data(ticker_list: list):
                     final_market_cap = market_cap_converted if is_latest else hist_market_cap
                     if is_latest and final_market_cap is None:
                         final_market_cap = hist_market_cap
+                    
+                    # DEBUG: Print market cap calculation result
+                    if is_latest:
+                        print(f"      {ticker_str} {year_val}: market_cap_converted={market_cap_converted}, hist_market_cap={hist_market_cap}, final={final_market_cap}")
+                    else:
+                        print(f"      {ticker_str} {year_val}: hist_market_cap={hist_market_cap} (shares={shares_outstanding}, source={shares_source})")
 
                     extracted_data.append({
                         "Ticker":                      ticker_str,
