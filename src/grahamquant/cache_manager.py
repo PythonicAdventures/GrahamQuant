@@ -73,31 +73,44 @@ RETRY_DELAY_SEC     = 5.0    # delay between retries
 CANONICAL_COLUMNS: dict[str, str] = {
     "Ticker":                       "object",
     "Region":                       "object",
+    "Company Name":                 "object",      # Long name from yfinance
+    "Industry":                     "object",      # Industry from yfinance
+    "Sector":                       "object",      # Sector from yfinance
     "Year":                         "Int64",       # nullable int
     "Report Date":                  "object",      # stored as string "YYYY-MM-DD"
     "Trading Currency":             "object",
     "Financial Currency":           "object",
+    "Beta":                         "float64",
     "Market Cap":                   "float64",     # raw numeric — formatting happens in UI
     "Total Assets":                 "float64",
     "Total Current Assets":         "float64",
+    "Current Liabilities":          "float64",
     "Total Goodwill and Intangibles": "float64",
     "Total Liabilities":            "float64",
     "Total Equity":                 "float64",
+    "Retained Earnings":            "float64",
     "Total Investments":            "float64",
     "Latest FY Net Income":         "float64",
+    "Latest FY Operating Income":   "float64",
+    "Latest FY Gross Profit":       "float64",
+    "Latest FY Revenue":            "float64",
+    "Latest FY Operating Cash Flow": "float64",
     "TTM Net Income":               "float64",
-    # Calculated columns (added by create_calcs)
+    # Calculated columns (added by apply_calcs)
     "NCAV":                         "float64",
     "NCAV_Inv":                     "float64",
     "Book_Value":                   "float64",
     "Tangible_Book_Value":          "float64",
     "ROE":                          "float64",
+    "ROA":                          "float64",
     "Price_Book_Ratio":             "float64",
     "Price_Tangible_Book_Ratio":    "float64",
     "Price_NCAV_Ratio":             "float64",
     "Price_NCAV_Inv_Ratio":         "float64",
     "PE_Ratio":                     "float64",
     "PE_Ratio_TTM":                 "float64",
+    "Z_Score":                      "float64",
+    "F_Score":                      "float64",
 }
 
 # Manifest schema

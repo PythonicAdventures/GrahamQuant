@@ -26,8 +26,9 @@ The reason for developing this tool was to create a small and light-weight Pytho
 - Price/NCAV + Investments Ratio: Market Cap / NCAV + Investments
 - Price/Book Ratio: Market Cap / Book Value
 - Price/Tangible Book Ratio: Market Cap / Tangible Book Value
-- Z-Score: WIP
-- F-Score: WIP
+- Z-Score (Altman): 1.2*(WC/TA) + 1.4*(RE/TA) + 3.3*(EBIT/TA) + 0.6*(MVE/TL) + 1.0*(Sales/TA)
+- F-Score (Piotroski): Composite 9-signal profitability and quality metric (0-9)
+- Beta: Volatility measure relative to market
 - Price 1 Year Low: WIP
 - Price 3 Year Low: WIP
 - Price 5 Year Low: WIP
@@ -35,9 +36,7 @@ The reason for developing this tool was to create a small and light-weight Pytho
 
 ## Repository Structure
 
-```
 <!-- readme-tree start -->
 <!-- readme-tree end -->
-```
 
 

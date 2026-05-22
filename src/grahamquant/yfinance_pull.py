@@ -10,6 +10,8 @@ import numpy as np
 import warnings
 import logging
 
+from .ticker_registry import get_region_for_ticker
+
 logger = logging.getLogger(__name__)
 
 # Suppress FutureWarnings that originate inside yfinance internals.
@@ -123,6 +125,7 @@ def pull_yf_ticker_data(ticker_list: list):
     for ticker_str in ticker_list:
         print(f"Fetching historical data for: {ticker_str}...")
         try:
+            region = get_region_for_ticker(ticker_str)
             ticker = yf.Ticker(ticker_str)
             info = ticker.info
 
@@ -132,9 +135,18 @@ def pull_yf_ticker_data(ticker_list: list):
             trading_curr = raw_trading.upper() if raw_trading else None
             financial_curr = raw_financial.upper() if raw_financial else None
 
+            # --- Company Info ---
+            company_name = info.get("longName", info.get("shortName", None))
+            industry = info.get("industry", None)
+            sector = info.get("sector", None)
+
             market_cap = info.get("marketCap", None)
 
+            # --- Beta ---
+            beta = info.get("beta", None)
+
             # --- FX rate ---
+
             fx_rate = 1.0
             if trading_curr and financial_curr and trading_curr != financial_curr:
                 fx_ticker_str = f"{trading_curr}{financial_curr}=X"
@@ -153,6 +165,11 @@ def pull_yf_ticker_data(ticker_list: list):
                 shares_series = ticker.get_shares_full(start="2015-01-01", end=None)
             except Exception:
                 pass
+
+            # --- Cash Flow Statement ---
+            raw_cf = ticker.cash_flow
+            if isinstance(raw_cf, tuple): raw_cf = raw_cf[0]
+            annual_cf = raw_cf if isinstance(raw_cf, pd.DataFrame) else pd.DataFrame(raw_cf)
 
             # --- TTM Net Income ---
             ttm_net_inc = None
@@ -193,9 +210,11 @@ def pull_yf_ticker_data(ticker_list: list):
 
                     total_assets              = _scalar(bs_col.get("Total Assets"))
                     current_assets            = _scalar(bs_col.get("Current Assets"))
+                    current_liabilities       = _scalar(bs_col.get("Current Liabilities"))
                     total_liabilities         = _scalar(bs_col.get("Total Liabilities Net Minority Interest"))
                     total_goodwill_intangibles= _scalar(bs_col.get("Goodwill And Other Intangible Assets"))
                     total_equity              = _scalar(bs_col.get("Common Stock Equity"))
+                    retained_earnings         = _scalar(bs_col.get("Retained Earnings"))
                     total_investments         = _scalar(
                         bs_col.get("Investment Properties") or bs_col.get("Investments And Advances")
                     )
@@ -257,16 +276,51 @@ def pull_yf_ticker_data(ticker_list: list):
 
                     # --- Income statement matching ---
                     fy_net_inc = None
-                    if not annual_inc.empty:
-                        if report_date in annual_inc.columns:
-                            fy_net_inc = _scalar(annual_inc[report_date].get("Net Income"))
-                        else:
-                            closest_col = min(
-                                annual_inc.columns,
-                                key=lambda x: abs(x - report_date),
-                            )
-                            if abs((closest_col - report_date).days) <= 7:
-                                fy_net_inc = _scalar(annual_inc[closest_col].get("Net Income"))
+                    fy_operating_income = None
+                    fy_gross_profit = None
+                    fy_revenue = None
+                    fy_operating_cash_flow = None
+                    
+                    try:
+                        if not annual_inc.empty:
+                            if report_date in annual_inc.columns:
+                                fy_net_inc = _scalar(annual_inc[report_date].get("Net Income"))
+                                fy_operating_income = _scalar(annual_inc[report_date].get("Operating Income"))
+                                fy_gross_profit = _scalar(annual_inc[report_date].get("Gross Profit"))
+                                fy_revenue = _scalar(annual_inc[report_date].get("Total Revenue"))
+                            else:
+                                try:
+                                    closest_col = min(
+                                        annual_inc.columns,
+                                        key=lambda x: abs(x - report_date),
+                                    )
+                                    if abs((closest_col - report_date).days) <= 7:
+                                        fy_net_inc = _scalar(annual_inc[closest_col].get("Net Income"))
+                                        fy_operating_income = _scalar(annual_inc[closest_col].get("Operating Income"))
+                                        fy_gross_profit = _scalar(annual_inc[closest_col].get("Gross Profit"))
+                                        fy_revenue = _scalar(annual_inc[closest_col].get("Total Revenue"))
+                                except Exception:
+                                    pass
+                    except Exception as e:
+                        logger.debug(f"{ticker_str} {year_val}: Income statement extraction failed: {e}")
+                    
+                    # --- Operating Cash Flow ---
+                    try:
+                        if not annual_cf.empty:
+                            if report_date in annual_cf.columns:
+                                fy_operating_cash_flow = _scalar(annual_cf[report_date].get("Operating Cash Flow"))
+                            else:
+                                try:
+                                    closest_cf_col = min(
+                                        annual_cf.columns,
+                                        key=lambda x: abs(x - report_date),
+                                    )
+                                    if abs((closest_cf_col - report_date).days) <= 7:
+                                        fy_operating_cash_flow = _scalar(annual_cf[closest_cf_col].get("Operating Cash Flow"))
+                                except Exception:
+                                    pass
+                    except Exception as e:
+                        logger.debug(f"{ticker_str} {year_val}: Cash flow extraction failed: {e}")
 
                     is_latest = report_date == annual_bs.columns[0]
                     final_market_cap = market_cap_converted if is_latest else hist_market_cap
@@ -281,18 +335,29 @@ def pull_yf_ticker_data(ticker_list: list):
 
                     extracted_data.append({
                         "Ticker":                      ticker_str,
+                        "Region":                      region,
+                        "Company Name":                company_name,
+                        "Industry":                    industry,
+                        "Sector":                      sector,
                         "Year":                        year_val,
                         "Report Date":                 date_str,
                         "Trading Currency":            trading_curr,
                         "Financial Currency":          financial_curr,
+                        "Beta":                        beta,
                         "Market Cap":                  final_market_cap,
                         "Total Assets":                total_assets,
                         "Total Current Assets":        current_assets,
+                        "Current Liabilities":         current_liabilities,
                         "Total Goodwill and Intangibles": total_goodwill_intangibles,
                         "Total Liabilities":           total_liabilities,
                         "Total Equity":                total_equity,
+                        "Retained Earnings":           retained_earnings,
                         "Total Investments":           total_investments,
                         "Latest FY Net Income":        fy_net_inc,
+                        "Latest FY Operating Income":  fy_operating_income,
+                        "Latest FY Gross Profit":      fy_gross_profit,
+                        "Latest FY Revenue":           fy_revenue,
+                        "Latest FY Operating Cash Flow": fy_operating_cash_flow,
                         "TTM Net Income":              ttm_net_inc if is_latest else None,
                     })
             else:

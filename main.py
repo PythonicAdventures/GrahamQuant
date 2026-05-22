@@ -103,7 +103,7 @@ def main():
         sys.exit(0)
 
     # ── Launch UI ──────────────────────────────────────────────────────────────
-    from src.grahamquant.ui import launch
+    from src.grahamquant.ui_new import launch
     launch(
         ticker_list=ticker_list,
         pull_fn=pull_yf_ticker_data,
