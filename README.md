@@ -37,6 +37,57 @@ The reason for developing this tool was to create a small and light-weight Pytho
 ## Repository Structure
 
 <!-- readme-tree start -->
+```
+.
+├── .github
+│   └── workflows
+│       └── auto-tree.yml
+├── .gitignore
+├── README.md
+├── SCREENER_GUIDE.md
+├── config.py
+├── data
+│   ├── cache
+│   │   ├── region=HK
+│   │   │   └── data.parquet
+│   │   ├── region=JP
+│   │   │   └── data.parquet
+│   │   ├── region=UK
+│   │   │   └── data.parquet
+│   │   └── region=US
+│   │       └── data.parquet
+│   └── manifest.parquet
+├── debug
+│   ├── check_market_cap.py
+│   ├── debug_refresh.py
+│   ├── debug_tz.py
+│   ├── refresh_and_test.py
+│   ├── test_price_fixed.py
+│   ├── test_price_history.py
+│   └── test_single_ticker.py
+├── debug.py
+├── main.py
+├── notebooks
+│   ├── cache_test.ipynb
+│   ├── yfinance_test.ipynb
+│   ├── yfinance_ver2.1.ipynb
+│   ├── yfinance_ver2.2.ipynb
+│   └── yfinance_ver2.ipynb
+├── repair
+│   └── rebuild_manifest.py
+├── src
+│   ├── __init__.py
+│   └── grahamquant
+│       ├── cache_manager.py
+│       ├── formulas_calcs.py
+│       ├── ticker_registry.py
+│       ├── ui.py
+│       ├── ui_new.py
+│       └── yfinance_pull.py
+└── tree.bak
+
+14 directories, 33 files
+```
 <!-- readme-tree end -->
 
 
