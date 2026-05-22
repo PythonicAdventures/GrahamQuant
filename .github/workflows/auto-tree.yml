@@ -3,7 +3,7 @@ name: Generate Repo Tree
 on:
   push:
     branches:
-      - main # Or your default branch name (e.g., master)
+      - v0.3.0 # Or your default branch name (e.g., master)
 
 jobs:
   build-tree:
