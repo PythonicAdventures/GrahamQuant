@@ -18,8 +18,8 @@ from src.grahamquant.formulas_calcs import apply_formatting
 # ── Palette ───────────────────────────────────────────────────────────────────
 BG        = "#0f1117"
 SURFACE   = "#1a1d27"
-BORDER    = "#2a2d3a"
-ACCENT    = "#c9a84c"
+BORDER    = "#070707"
+ACCENT    = "#f0f2fa"
 NEG       = "#e05c5c"
 NEUTRAL   = "#8b8fa8"
 BODY      = "#d4d7e3"
@@ -30,7 +30,9 @@ HIGHLIGHT = "#252838"
 # Only latest year, one row per ticker
 SCREENER_COLUMNS = [
     "Ticker", "Company Name", "Sector", "Industry", "Market Cap",
-    "Price_Book_Ratio", "Price_NCAV_Ratio", "Z_Score", "F_Score", "ROE"
+    "Price_Book_Ratio", "Price_NCAV_Ratio", "Z_Score", "F_Score", "ROE",
+    "Net_Debt_EBITDA", "Dividend_Yield",
+    "Cash_Pct_NCAV", "Receivables_Pct_NCAV", "Inventory_Pct_NCAV", "PPE_Pct_NCAV", "Other_Assets_Pct_NCAV"
 ]
 
 SCREENER_HEADERS = {
@@ -44,10 +46,20 @@ SCREENER_HEADERS = {
     "Z_Score": "Z-Score",
     "F_Score": "F-Score",
     "ROE": "ROE %",
+    "Net_Debt_EBITDA": "ND/EBITDA",
+    "Dividend_Yield": "Div Yield",
+    "Cash_Pct_NCAV": "Cash %",
+    "Receivables_Pct_NCAV": "AR %",
+    "Inventory_Pct_NCAV": "Inv %",
+    "PPE_Pct_NCAV": "PPE %",
+    "Other_Assets_Pct_NCAV": "Other %",
 }
 
 SCREENER_COL_WIDTHS = {
     "Ticker": 60, "Company Name": 300, "Sector": 200, "Industry": 200, "Market Cap": 100,
+    "Net_Debt_EBITDA": 100, "Dividend_Yield": 90,
+    "Cash_Pct_NCAV": 75, "Receivables_Pct_NCAV": 75, "Inventory_Pct_NCAV": 75, 
+    "PPE_Pct_NCAV": 75, "Other_Assets_Pct_NCAV": 75,
 }
 SCREENER_DEFAULT_WIDTH = 90
 
@@ -241,7 +253,7 @@ class GrahamQuantApp(tk.Tk):
         title_bar = tk.Frame(self, bg=BG, padx=24, pady=14)
         title_bar.pack(fill="x")
         ttk.Label(title_bar, text="GRAHAMQUANT", style="Title.TLabel").pack(side="left")
-        ttk.Label(title_bar, text="  //  deep value screen", style="Sub.TLabel").pack(side="left", padx=(6, 0))
+        ttk.Label(title_bar, text="  //  Deep Value Screener", style="Sub.TLabel").pack(side="left", padx=(6, 0))
 
         # ---- Toolbar with view tabs ----
         toolbar = ttk.Frame(self, style="Toolbar.TFrame", padding=(24, 10))
@@ -319,52 +331,41 @@ class GrahamQuantApp(tk.Tk):
             regions = sorted(latest_df["Sector"].dropna().unique())
             industries = sorted(latest_df["Industry"].dropna().unique())
             
+            # Initialize filter vars if not already done
+            for region in regions:
+                if f"region_{region}" not in self._filter_vars:
+                    self._filter_vars[f"region_{region}"] = tk.BooleanVar(value=True)
+            for industry in industries:
+                if f"industry_{industry}" not in self._filter_vars:
+                    self._filter_vars[f"industry_{industry}"] = tk.BooleanVar(value=True)
+            
             filter_frame = tk.Frame(outer, bg=SURFACE, padx=12, pady=10)
             filter_frame.pack(fill="x", pady=(0, 12))
             
-            # Region filter
-            tk.Label(filter_frame, text="REGIONS:", bg=SURFACE, fg=ACCENT, font=("Courier New", 9, "bold")).pack(side="left", padx=(0, 10))
+            # Region filter button
+            tk.Label(filter_frame, text="REGIONS:", bg=SURFACE, fg=ACCENT, font=("Calibri", 9, "bold")).pack(side="left", padx=(0, 10))
+            self._region_btn = ttk.Button(
+                filter_frame,
+                text="Select Regions",
+                command=lambda: self._show_filter_dialog("region", regions)
+            )
+            self._region_btn.pack(side="left", padx=(0, 20))
+            self._region_btn_label = tk.Label(filter_frame, text="", bg=SURFACE, fg=ACCENT, font=("Calibri", 8))
+            self._region_btn_label.pack(side="left", padx=(0, 20))
             
-            region_frame = tk.Frame(filter_frame, bg=SURFACE)
-            region_frame.pack(side="left", padx=(0, 20))
+            # Industry filter button
+            tk.Label(filter_frame, text="INDUSTRY:", bg=SURFACE, fg=ACCENT, font=("Calibri", 9, "bold")).pack(side="left", padx=(0, 10))
+            self._industry_btn = ttk.Button(
+                filter_frame,
+                text="Select Industry",
+                command=lambda: self._show_filter_dialog("industry", industries)
+            )
+            self._industry_btn.pack(side="left", padx=(0, 20))
+            self._industry_btn_label = tk.Label(filter_frame, text="", bg=SURFACE, fg=ACCENT, font=("Calibri", 8))
+            self._industry_btn_label.pack(side="left")
             
-            for region in regions[:8]:  # Limit display to 8 regions per row
-                var = tk.BooleanVar(value=True)
-                self._filter_vars[f"region_{region}"] = var
-                cb = tk.Checkbutton(
-                    region_frame,
-                    text=region if region else "Other",
-                    variable=var,
-                    bg=SURFACE, fg=BODY,
-                    selectcolor=SURFACE,
-                    activebackground=SURFACE,
-                    activeforeground=ACCENT,
-                    font=("Courier New", 8),
-                    command=self._on_filter_change
-                )
-                cb.pack(side="left", padx=4)
-            
-            # Industry filter (collapsible)
-            tk.Label(filter_frame, text="INDUSTRY:", bg=SURFACE, fg=ACCENT, font=("Courier New", 9, "bold")).pack(side="left", padx=(0, 10))
-            
-            industry_frame = tk.Frame(filter_frame, bg=SURFACE)
-            industry_frame.pack(side="left")
-            
-            for industry in industries[:12]:  # Show first 12 industries
-                var = tk.BooleanVar(value=True)
-                self._filter_vars[f"industry_{industry}"] = var
-                cb = tk.Checkbutton(
-                    industry_frame,
-                    text=industry if industry else "Other",
-                    variable=var,
-                    bg=SURFACE, fg=BODY,
-                    selectcolor=SURFACE,
-                    activebackground=SURFACE,
-                    activeforeground=ACCENT,
-                    font=("Courier New", 8),
-                    command=self._on_filter_change
-                )
-                cb.pack(side="left", padx=2)
+            # Update labels with selection counts
+            self._update_filter_labels(regions, industries)
 
         # ---- Treeview ----
         tree_frame = tk.Frame(outer, bg=BG)
@@ -380,8 +381,13 @@ class GrahamQuantApp(tk.Tk):
 
         for col in SCREENER_COLUMNS:
             w = SCREENER_COL_WIDTHS.get(col, SCREENER_DEFAULT_WIDTH)
-            self._screener_tree.heading(col, text=SCREENER_HEADERS.get(col, col), anchor="e", command=lambda c=col: self._on_sort(c))
-            self._screener_tree.column(col, width=w, anchor="e" if col not in ("Ticker", "Company Name") else "w", minwidth=45, stretch=False)
+            self._screener_tree.heading(col, text=SCREENER_HEADERS.get(col, col), anchor="w", command=lambda c=col: self._on_sort(c))
+            # Left-align text columns (Ticker, Name, Sector, Industry), right-align numeric columns
+            if col in ("Ticker", "Company Name", "Sector", "Industry"):
+                col_anchor = "w"
+            else:
+                col_anchor = "e"
+            self._screener_tree.column(col, width=w, anchor=col_anchor, minwidth=45, stretch=False)
 
         # Populate with filtered/sorted data
         self._populate_screener()
@@ -448,8 +454,88 @@ class GrahamQuantApp(tk.Tk):
 
         self._status_var.set(f"Displayed {len(latest_df)} of {len(self._all_data.drop_duplicates('Ticker'))} tickers. Click headers to sort.")
 
+    def _show_filter_dialog(self, filter_type: str, items: list):
+        """Show a popup dialog for selecting filter items."""
+        dialog = tk.Toplevel(self)
+        dialog.title(f"Select {filter_type.capitalize()}")
+        dialog.geometry("1200x600")
+        dialog.configure(bg=BG)
+        
+        # Create frame for checkboxes with scrollbar
+        canvas = tk.Canvas(dialog, bg=SURFACE, highlightthickness=0)
+        scrollbar = ttk.Scrollbar(dialog, orient="vertical", command=canvas.yview)
+        scrollable_frame = tk.Frame(canvas, bg=SURFACE)
+        
+        scrollable_frame.bind(
+            "<Configure>",
+            lambda e: canvas.configure(scrollregion=canvas.bbox("all"))
+        )
+        
+        canvas.create_window((0, 0), window=scrollable_frame, anchor="nw")
+        canvas.configure(yscrollcommand=scrollbar.set)
+        
+        # Add checkboxes
+        checkbox_vars = []
+        for item in items:
+            var_key = f"{filter_type}_{item}"
+            var = self._filter_vars.get(var_key, tk.BooleanVar(value=True))
+            self._filter_vars[var_key] = var
+            checkbox_vars.append((item, var))
+            
+            cb = tk.Checkbutton(
+                scrollable_frame,
+                text=item if item else "Other",
+                variable=var,
+                bg=SURFACE, fg=BODY,
+                selectcolor=SURFACE,
+                activebackground=SURFACE,
+                activeforeground=ACCENT,
+                font=("Calibri", 9),
+            )
+            cb.pack(anchor="w", padx=10, pady=4)
+        
+        canvas.pack(side="left", fill="both", expand=True, padx=5, pady=5)
+        scrollbar.pack(side="right", fill="y", padx=(0, 5), pady=5)
+        
+        # Buttons
+        button_frame = tk.Frame(dialog, bg=BG, pady=10)
+        button_frame.pack(fill="x")
+        
+        def on_ok():
+            self._on_filter_change()
+            dialog.destroy()
+        
+        def select_all():
+            for _, var in checkbox_vars:
+                var.set(True)
+        
+        def deselect_all():
+            for _, var in checkbox_vars:
+                var.set(False)
+        
+        ttk.Button(button_frame, text="Select All", command=select_all).pack(side="left", padx=5)
+        ttk.Button(button_frame, text="Deselect All", command=deselect_all).pack(side="left", padx=5)
+        ttk.Button(button_frame, text="OK", command=on_ok).pack(side="right", padx=5)
+
+    def _update_filter_labels(self, regions: list, industries: list):
+        """Update the filter button labels with selection counts."""
+        if hasattr(self, '_region_btn_label'):
+            selected_regions = [r for r in regions if self._filter_vars.get(f"region_{r}", tk.BooleanVar(value=True)).get()]
+            self._region_btn_label.config(text=f"({len(selected_regions)}/{len(regions)})")
+        
+        if hasattr(self, '_industry_btn_label'):
+            selected_industries = [i for i in industries if self._filter_vars.get(f"industry_{i}", tk.BooleanVar(value=True)).get()]
+            self._industry_btn_label.config(text=f"({len(selected_industries)}/{len(industries)})")
+
     def _on_filter_change(self):
         """Refresh screener when filter changes."""
+        # Update filter labels if screener is active
+        if self._view_mode == "screener" and self._all_data is not None and not self._all_data.empty:
+            latest_df = self._all_data.sort_values("Year", ascending=False).drop_duplicates("Ticker")
+            regions = sorted(latest_df["Sector"].dropna().unique())
+            industries = sorted(latest_df["Industry"].dropna().unique())
+            self._update_filter_labels(regions, industries)
+        
         self._populate_screener()
 
     def _on_sort(self, col: str):
@@ -471,7 +557,7 @@ class GrahamQuantApp(tk.Tk):
                 self._content,
                 text="No data available.",
                 bg=BG, fg=NEUTRAL,
-                font=("Courier New", 10),
+                font=("Calibri", 10),
             ).pack(pady=20)
             return
 
@@ -496,7 +582,7 @@ class GrahamQuantApp(tk.Tk):
 
         for col in HISTORY_COLUMNS:
             w = HISTORY_COL_WIDTHS.get(col, HISTORY_DEFAULT_WIDTH)
-            tree.heading(col, text=HISTORY_HEADERS.get(col, col), anchor="e")
+            tree.heading(col, text=HISTORY_HEADERS.get(col, col), anchor="w")
             tree.column(col, width=w, anchor="e", minwidth=45, stretch=False)
 
         # Get all years for selected ticker

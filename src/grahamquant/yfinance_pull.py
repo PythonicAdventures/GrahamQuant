@@ -144,6 +144,9 @@ def pull_yf_ticker_data(ticker_list: list):
 
             # --- Beta ---
             beta = info.get("beta", None)
+            
+            # --- Dividend Yield ---
+            dividend_yield = info.get("dividendYield", None)
 
             # --- FX rate ---
 
@@ -218,6 +221,26 @@ def pull_yf_ticker_data(ticker_list: list):
                     total_investments         = _scalar(
                         bs_col.get("Investment Properties") or bs_col.get("Investments And Advances")
                     )
+                    
+                    # --- Asset Composition ---
+                    cash                      = _scalar(bs_col.get("Cash And Cash Equivalents"))
+                    receivables               = _scalar(bs_col.get("Accounts Receivable"))
+                    inventory                 = _scalar(bs_col.get("Inventory"))
+                    ppe                       = _scalar(bs_col.get("Property Plant Equipment"))
+                    
+                    # --- Debt and Cash ---
+                    current_debt              = _scalar(bs_col.get("Current Debt"))
+                    long_term_debt            = _scalar(bs_col.get("Long Term Debt"))
+                    
+                    # Total Debt = Current Debt + Long-term Debt (or use Total Liabilities as fallback)
+                    total_debt = None
+                    if current_debt is not None or long_term_debt is not None:
+                        total_debt = (current_debt or 0) + (long_term_debt or 0)
+                    
+                    # Net Debt = Total Debt - Cash
+                    net_debt = None
+                    if total_debt is not None and cash is not None:
+                        net_debt = total_debt - cash
 
                     # --- Historical Market Cap ---
                     # Multi-strategy approach to get shares outstanding:
@@ -280,6 +303,7 @@ def pull_yf_ticker_data(ticker_list: list):
                     fy_gross_profit = None
                     fy_revenue = None
                     fy_operating_cash_flow = None
+                    fy_ebitda = None
                     
                     try:
                         if not annual_inc.empty:
@@ -288,6 +312,7 @@ def pull_yf_ticker_data(ticker_list: list):
                                 fy_operating_income = _scalar(annual_inc[report_date].get("Operating Income"))
                                 fy_gross_profit = _scalar(annual_inc[report_date].get("Gross Profit"))
                                 fy_revenue = _scalar(annual_inc[report_date].get("Total Revenue"))
+                                fy_ebitda = _scalar(annual_inc[report_date].get("EBITDA"))
                             else:
                                 try:
                                     closest_col = min(
@@ -299,6 +324,7 @@ def pull_yf_ticker_data(ticker_list: list):
                                         fy_operating_income = _scalar(annual_inc[closest_col].get("Operating Income"))
                                         fy_gross_profit = _scalar(annual_inc[closest_col].get("Gross Profit"))
                                         fy_revenue = _scalar(annual_inc[closest_col].get("Total Revenue"))
+                                        fy_ebitda = _scalar(annual_inc[closest_col].get("EBITDA"))
                                 except Exception:
                                     pass
                     except Exception as e:
@@ -344,6 +370,7 @@ def pull_yf_ticker_data(ticker_list: list):
                         "Trading Currency":            trading_curr,
                         "Financial Currency":          financial_curr,
                         "Beta":                        beta,
+                        "Dividend Yield":              dividend_yield if is_latest else None,
                         "Market Cap":                  final_market_cap,
                         "Total Assets":                total_assets,
                         "Total Current Assets":        current_assets,
@@ -353,11 +380,18 @@ def pull_yf_ticker_data(ticker_list: list):
                         "Total Equity":                total_equity,
                         "Retained Earnings":           retained_earnings,
                         "Total Investments":           total_investments,
+                        "Cash":                        cash,
+                        "Receivables":                 receivables,
+                        "Inventory":                   inventory,
+                        "PPE":                         ppe,
+                        "Total Debt":                  total_debt,
+                        "Net Debt":                    net_debt,
                         "Latest FY Net Income":        fy_net_inc,
                         "Latest FY Operating Income":  fy_operating_income,
                         "Latest FY Gross Profit":      fy_gross_profit,
                         "Latest FY Revenue":           fy_revenue,
                         "Latest FY Operating Cash Flow": fy_operating_cash_flow,
+                        "Latest FY EBITDA":            fy_ebitda,
                         "TTM Net Income":              ttm_net_inc if is_latest else None,
                     })
             else:

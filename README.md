@@ -24,10 +24,16 @@ Many tools in the marketplace don't seem adequete for this type of investing and
 - NCAV + Investments: Total Current Assets - Total Liabilities + Total Investments
 - Book Value: Total Assets - Total Liabilities
 - Tangible Book Value: Total Assets - Total Liabilities - Goodwill & Intangible Assets
+- Total Tangible Assets: Cash + Receivables + Inventory + Investments + PP&E
 - Price/NCAV Ratio: Market Cap / NCAV
 - Price/NCAV + Investments Ratio: Market Cap / NCAV + Investments
 - Price/Book Ratio: Market Cap / Book Value
 - Price/Tangible Book Ratio: Market Cap / Tangible Book Value
+- Cash % of Total Tangible Assets: Cash / Total Tangible Assets
+- Receivables % of Total Tangible Assets: Receivables / Total Tangible Assets
+- Inventory % of Total Tangible Assets: Inventory / Total Tangible Assets
+- Investments % of Total Tangible Assets: Investments / Total Tangible Assets
+- Other Assets % of Total Tangible Assets: Other Assets / Total Tangible Assets
 - Z-Score (Altman): 1.2*(WC/TA) + 1.4*(RE/TA) + 3.3*(EBIT/TA) + 0.6*(MVE/TL) + 1.0*(Sales/TA)
 - F-Score (Piotroski): Composite 9-signal profitability and quality metric (0-9)
 - Beta: Volatility measure relative to market

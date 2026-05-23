@@ -81,6 +81,7 @@ CANONICAL_COLUMNS: dict[str, str] = {
     "Trading Currency":             "object",
     "Financial Currency":           "object",
     "Beta":                         "float64",
+    "Dividend Yield":               "float64",     # from yfinance info (latest year only)
     "Market Cap":                   "float64",     # raw numeric — formatting happens in UI
     "Total Assets":                 "float64",
     "Total Current Assets":         "float64",
@@ -90,11 +91,18 @@ CANONICAL_COLUMNS: dict[str, str] = {
     "Total Equity":                 "float64",
     "Retained Earnings":            "float64",
     "Total Investments":            "float64",
+    "Total Debt":                   "float64",     # Current Debt + Long-term Debt
+    "Cash":                         "float64",     # Cash and Cash Equivalents
+    "Receivables":                  "float64",     # Accounts Receivable
+    "Inventory":                    "float64",     # Inventory
+    "PPE":                          "float64",     # Property, Plant & Equipment
+    "Net Debt":                     "float64",     # Total Debt - Cash
     "Latest FY Net Income":         "float64",
     "Latest FY Operating Income":   "float64",
     "Latest FY Gross Profit":       "float64",
     "Latest FY Revenue":            "float64",
     "Latest FY Operating Cash Flow": "float64",
+    "Latest FY EBITDA":             "float64",
     "TTM Net Income":               "float64",
     # Calculated columns (added by apply_calcs)
     "NCAV":                         "float64",
@@ -111,6 +119,13 @@ CANONICAL_COLUMNS: dict[str, str] = {
     "PE_Ratio_TTM":                 "float64",
     "Z_Score":                      "float64",
     "F_Score":                      "float64",
+    "Net_Debt_EBITDA":              "float64",
+    "Dividend_Yield":               "float64",
+    "Cash_Pct":                     "float64",     # Cash as % of NCAV
+    "Receivables_Pct":              "float64",     # Receivables as % of NCAV
+    "Inventory_Pct":                "float64",     # Inventory as % of NCAV
+    "PPE_Pct":                      "float64",     # PPE as % of NCAV
+    "Other_Assets_Pct":             "float64",     # Other assets as % of NCAV
 }
 
 # Manifest schema
