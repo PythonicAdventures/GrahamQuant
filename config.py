@@ -4,8 +4,12 @@ directory
 """
 
 from pathlib import Path
+from src.grahamquant.ticker_registry import get_all_tickers
 
 project_root = Path(__file__).resolve().parent
 
-# TODO: Revisit - most likely ticker list will be a csv data load
-ticker_list = ['2267.T', '3435.T', '1846.HK', '6889.HK', '7399.T', '1913.HK', 'VTU.L', '0700.HK']
+# Ticker list is dynamically built from the registry (active regions only).
+# To add new tickers: expand REGISTRY in ticker_registry.py, then run:
+#   python main.py --refresh          # to fetch and cache new data
+#   python main.py                    # to launch UI with updated cache
+ticker_list = get_all_tickers()

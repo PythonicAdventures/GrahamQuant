@@ -14,8 +14,7 @@ Many tools in the marketplace don't seem adequete for this type of investing and
 
 ## Features (WIP)
 - Calculation of relevant metrics based on yfinance information utilizing recent financials or balance sheet information.
-- Price charts with valuation comparisons
-- Watchlist tracking
+- Provides Screener view and drill-down into an individual company's historical figures (back 3-5 years).
 - Market Cap conversion into financial statement currency
 
 ## Formulas and Metrics
@@ -41,6 +40,13 @@ Many tools in the marketplace don't seem adequete for this type of investing and
 - Price 3 Year Low: WIP
 - Price 5 Year Low: WIP
 - Price 10 Year Low: WIP
+
+## Future Development Items
+- Sourcing alternative free data sources for specific regions (US, Japan(EDINET), etc.)
+- Potential conversion to Django
+- Visualizations and Reports
+- Watchlist tracking
+- Value Investing Blogs/RSS Feeds updates
 
 ## Repository Structure
 
