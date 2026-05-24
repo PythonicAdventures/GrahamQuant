@@ -32,7 +32,7 @@ SCREENER_COLUMNS = [
     "Ticker", "Company Name", "Sector", "Industry", "Market Cap",
     "Price_Book_Ratio", "Price_NCAV_Ratio", "Z_Score", "F_Score", "ROE",
     "Net_Debt_EBITDA", "Dividend_Yield",
-    "Cash_Pct_NCAV", "Receivables_Pct_NCAV", "Inventory_Pct_NCAV", "PPE_Pct_NCAV", "Other_Assets_Pct_NCAV"
+    "Cash_Pct", "Receivables_Pct", "Inventory_Pct", "PPE_Pct", "Other_Assets_Pct"
 ]
 
 SCREENER_HEADERS = {
@@ -48,18 +48,18 @@ SCREENER_HEADERS = {
     "ROE": "ROE %",
     "Net_Debt_EBITDA": "ND/EBITDA",
     "Dividend_Yield": "Div Yield",
-    "Cash_Pct_NCAV": "Cash %",
-    "Receivables_Pct_NCAV": "AR %",
-    "Inventory_Pct_NCAV": "Inv %",
-    "PPE_Pct_NCAV": "PPE %",
-    "Other_Assets_Pct_NCAV": "Other %",
+    "Cash_Pct": "Cash %",
+    "Receivables_Pct": "AR %",
+    "Inventory_Pct": "Inv %",
+    "PPE_Pct": "PPE %",
+    "Other_Assets_Pct": "Other %",
 }
 
 SCREENER_COL_WIDTHS = {
     "Ticker": 60, "Company Name": 300, "Sector": 200, "Industry": 200, "Market Cap": 100,
     "Net_Debt_EBITDA": 100, "Dividend_Yield": 90,
-    "Cash_Pct_NCAV": 75, "Receivables_Pct_NCAV": 75, "Inventory_Pct_NCAV": 75, 
-    "PPE_Pct_NCAV": 75, "Other_Assets_Pct_NCAV": 75,
+    "Cash_Pct": 75, "Receivables_Pct": 75, "Inventory_Pct": 75, 
+    "PPE_Pct": 75, "Other_Assets_Pct": 75,
 }
 SCREENER_DEFAULT_WIDTH = 90
 

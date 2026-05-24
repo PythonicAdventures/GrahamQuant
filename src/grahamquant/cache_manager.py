@@ -121,11 +121,11 @@ CANONICAL_COLUMNS: dict[str, str] = {
     "F_Score":                      "float64",
     "Net_Debt_EBITDA":              "float64",
     "Dividend_Yield":               "float64",
-    "Cash_Pct":                     "float64",     # Cash as % of NCAV
-    "Receivables_Pct":              "float64",     # Receivables as % of NCAV
-    "Inventory_Pct":                "float64",     # Inventory as % of NCAV
-    "PPE_Pct":                      "float64",     # PPE as % of NCAV
-    "Other_Assets_Pct":             "float64",     # Other assets as % of NCAV
+    "Cash_Pct":                     "float64",     # Cash as % of Total Tangible Assets
+    "Receivables_Pct":              "float64",     # Receivables as % of Total Tangible Assets
+    "Inventory_Pct":                "float64",     # Inventory as % of Total Tangible Assets
+    "PPE_Pct":                      "float64",     # PPE as % of Total Tangible Assets
+    "Other_Assets_Pct":             "float64",     # Investments as % of Total Tangible Assets
 }
 
 # Manifest schema

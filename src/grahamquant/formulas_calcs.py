@@ -114,24 +114,22 @@ def apply_calcs(df_: pd.DataFrame) -> pd.DataFrame:
     # ── Asset Composition as % of Total Tangible Assets ────────────────────────
     # Total Tangible Assets = Cash + Receivables + Inventory + PPE + Investments
     # Calculate what % each component represents. These 5 should sum to 100%
-    total_tangible_assets = (
-        df_["Cash"].fillna(0) + 
-        df_["Receivables"].fillna(0) + 
-        df_["Inventory"].fillna(0) + 
-        df_["PPE"].fillna(0) + 
-        df_["Total Investments"].fillna(0)
-    )
-    
-    tangible_for_pct = total_tangible_assets.replace(0, np.nan)  # Avoid division by zero
-    
-    df_ = (df_
-           .assign(
-               Cash_Pct=lambda d: (d["Cash"] / tangible_for_pct * 100).fillna(np.nan),
-               Receivables_Pct=lambda d: (d["Receivables"] / tangible_for_pct * 100).fillna(np.nan),
-               Inventory_Pct=lambda d: (d["Inventory"] / tangible_for_pct * 100).fillna(np.nan),
-               PPE_Pct=lambda d: (d["PPE"] / tangible_for_pct * 100).fillna(np.nan),
-               Other_Assets_Pct=lambda d: (d["Total Investments"] / tangible_for_pct * 100).fillna(np.nan),
-           ))
+    # Chained assignments to avoid intermediate variables
+    # Note: Store as decimals (0-1 range), formatting layer applies % display
+    df_ = df_.assign(
+        _tangible_assets=lambda d: (
+            d["Cash"].fillna(0) + 
+            d["Receivables"].fillna(0) + 
+            d["Inventory"].fillna(0) + 
+            d["PPE"].fillna(0) + 
+            d["Total Investments"].fillna(0)
+        ).replace(0, np.nan),
+        Cash_Pct=lambda d: (d["Cash"] / d["_tangible_assets"]).fillna(np.nan),
+        Receivables_Pct=lambda d: (d["Receivables"] / d["_tangible_assets"]).fillna(np.nan),
+        Inventory_Pct=lambda d: (d["Inventory"] / d["_tangible_assets"]).fillna(np.nan),
+        PPE_Pct=lambda d: (d["PPE"] / d["_tangible_assets"]).fillna(np.nan),
+        Other_Assets_Pct=lambda d: (d["Total Investments"] / d["_tangible_assets"]).fillna(np.nan),
+    ).drop(columns=["_tangible_assets"])
 
     # ── Altman Z-Score ────────────────────────────────────────────────────────
     # Z = 1.2*X1 + 1.4*X2 + 3.3*X3 + 0.6*X4 + 1.0*X5
