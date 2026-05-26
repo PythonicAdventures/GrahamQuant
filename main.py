@@ -3,7 +3,9 @@ main.py: Starting point to engage the application.
 
 Usage
 -----
-  python main.py                      # launch UI (uses cache)
+  python main.py                      # launch UI (uses cache, tkinter)
+  python main.py --web                # launch FastAPI web UI (modern web interface)
+  python main.py --web --host 0.0.0.0 # web UI accessible from other machines
   python main.py --refresh            # force full refresh of all active regions, then launch UI
   python main.py --refresh-region JP  # refresh one region, then launch UI
   python main.py --refresh-only       # refresh without launching UI (for scheduled runs)
@@ -43,6 +45,9 @@ def main():
     parser.add_argument("--refresh-region", metavar="REGION",   help="Refresh one region (e.g. JP)")
     parser.add_argument("--refresh-only",   action="store_true", help="Refresh without launching UI")
     parser.add_argument("--screen",         action="store_true", help="Print net-net screen and exit")
+    parser.add_argument("--web",            action="store_true", help="Launch FastAPI web UI (default: tkinter)")
+    parser.add_argument("--host",           metavar="HOST",     default="127.0.0.1", help="Web server host (default: 127.0.0.1)")
+    parser.add_argument("--port",           metavar="PORT",     type=int, default=8000, help="Web server port (default: 8000)")
     args = parser.parse_args()
 
     data_dir = project_root / "data"
@@ -103,13 +108,24 @@ def main():
         sys.exit(0)
 
     # ── Launch UI ──────────────────────────────────────────────────────────────
-    from src.grahamquant.ui_new import launch
-    launch(
-        ticker_list=ticker_list,
-        pull_fn=pull_yf_ticker_data,
-        calc_fn=create_calcs,
-        cache=cache,
-    )
+    if args.web:
+        from src.grahamquant.ui_fastapi import launch
+        launch(
+            ticker_list=ticker_list,
+            pull_fn=pull_yf_ticker_data,
+            calc_fn=create_calcs,
+            cache=cache,
+            host=args.host,
+            port=args.port,
+        )
+    else:
+        from src.grahamquant.ui_new import launch
+        launch(
+            ticker_list=ticker_list,
+            pull_fn=pull_yf_ticker_data,
+            calc_fn=create_calcs,
+            cache=cache,
+        )
 
 
 if __name__ == "__main__":

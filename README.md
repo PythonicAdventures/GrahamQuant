@@ -72,6 +72,7 @@ GrahamQuant
         ├── cache_manager.py            # Configurations and Manager for parquet generation
         ├── formulas_calcs.py           # Core calculations and formulas for the data
         ├── ticker_registry.py          # Registry and configuration for regional tickers
+        ├── ui_fastapi.py               # fastapi + HTML conversion from tkinter
         ├── ui_new.py                   # Screener & History Split front-end UI
         ├── ui.py                       # Old UI - Single screen with current vs historical data
         └── yfinance_pull.py            # Pulling script when data isn't cached
